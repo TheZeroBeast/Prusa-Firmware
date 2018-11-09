@@ -269,7 +269,7 @@ void mmu_loop(void)
 			if (!mmu_finda && CHECK_FINDA && fsensor_enabled) {
 				fsensor_stop_and_save_print();
 				enquecommand_front_P(PSTR("FSENSOR_RECOVER")); //then recover
-				if (lcd_autoDeplete) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
+				if (lcd_autoDepleteEnabled()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
 				else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
 			}
 			mmu_state = 1;
@@ -376,6 +376,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 	float z_position_bckp = current_position[Z_AXIS];
 	float x_position_bckp = current_position[X_AXIS];
 	float y_position_bckp = current_position[Y_AXIS];	
+	uint8_t screen = 0; //used for showing multiscreen messages
 	while(!response)
 	{
 		  response = mmu_get_response(); //wait for "ok" from mmu
@@ -411,8 +412,33 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 					  setAllTargetHotends(0);
 				  }
 			  }
-			  lcd_display_message_fullscreen_P(_i("MMU needs user attention. Fix the issue and then press button on MMU unit."));
-			  delay_keep_alive(1000);
+
+			  //first three lines are used for printing multiscreen message; last line contains measured and target nozzle temperature
+			  if (screen == 0) { //screen 0
+				  lcd_display_message_fullscreen_P(_i("MMU needs user attention."));
+				  screen++;
+			  }
+			  else {  //screen 1
+				  if((degTargetHotend(active_extruder) == 0) && turn_off_nozzle) lcd_display_message_fullscreen_P(_i("Press the knob to resume nozzle temperature."));
+				  else lcd_display_message_fullscreen_P(_i("Fix the issue and then press button on MMU unit."));
+				  screen=0;
+			  }
+
+			  lcd_set_degree();
+			  lcd_set_cursor(0, 4); //line 4
+			  //Print the hotend temperature (9 chars total) and fill rest of the line with space
+			  int chars = lcd_printf_P(_N("%c%3d/%d%c"), LCD_STR_THERMOMETER[0],(int)(degHotend(active_extruder) + 0.5), (int)(degTargetHotend(active_extruder) + 0.5), LCD_STR_DEGREE[0]);
+			  lcd_space(9 - chars);
+
+
+			  //5 seconds delay
+			  for (uint8_t i = 0; i < 50; i++) {
+				  if (lcd_clicked()) {
+					  setTargetHotend(hotend_temp_bckp, active_extruder);
+					  break;
+				  }
+				  delay_keep_alive(100);
+			  }
 		  }
 		  else if (mmu_print_saved) {
 			  printf_P(PSTR("MMU starts responding\n"));
@@ -420,8 +446,10 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 			  {
 				lcd_clear();
 				setTargetHotend(hotend_temp_bckp, active_extruder);
-				lcd_display_message_fullscreen_P(_i("MMU OK. Resuming temperature..."));
-				delay_keep_alive(3000);
+				if (((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5)) {
+					lcd_display_message_fullscreen_P(_i("MMU OK. Resuming temperature..."));
+					delay_keep_alive(3000);
+				}
 				while ((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5) 
 				{
 					delay_keep_alive(1000);
@@ -544,13 +572,8 @@ void mmu_M600_load_filament(bool automatic)
 		  manage_response(false, true);
 		  mmu_command(MMU_CMD_C0);
     	  mmu_extruder = tmp_extruder; //filament change is finished
-
 		  mmu_load_to_nozzle();
-
-
-		  st_synchronize();
-		  current_position[E_AXIS]+= FILAMENTCHANGE_FINALFEED ;
-		  plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 2, active_extruder);
+		  load_filament_final_feed();
 }
 
 
@@ -811,13 +834,7 @@ void extr_unload()
 	}
 	else
 	{
-		lcd_clear();
-		lcd_set_cursor(0, 0);
-		lcd_puts_P(_T(MSG_ERROR));
-		lcd_set_cursor(0, 2);
-		lcd_puts_P(_T(MSG_PREHEAT_NOZZLE));
-		delay(2000);
-		lcd_clear();
+		show_preheat_nozzle_warning();
 	}
 	//lcd_return_to_status();
 }
@@ -871,6 +888,31 @@ void extr_adj_4()
 	change_extr(4);
 	extr_adj(4);
 #endif
+}
+
+void mmu_load_to_nozzle_0() 
+{
+	lcd_mmu_load_to_nozzle(0);
+}
+
+void mmu_load_to_nozzle_1() 
+{
+	lcd_mmu_load_to_nozzle(1);
+}
+
+void mmu_load_to_nozzle_2() 
+{
+	lcd_mmu_load_to_nozzle(2);
+}
+
+void mmu_load_to_nozzle_3() 
+{
+	lcd_mmu_load_to_nozzle(3);
+}
+
+void mmu_load_to_nozzle_4() 
+{
+	lcd_mmu_load_to_nozzle(4);
 }
 
 void mmu_eject_fil_0()
@@ -940,6 +982,7 @@ void extr_change_3()
 	lcd_return_to_status();
 }
 
+#ifdef SNMM
 //wrapper functions for unloading filament
 void extr_unload_all()
 {
@@ -953,13 +996,7 @@ void extr_unload_all()
 	}
 	else
 	{
-		lcd_clear();
-		lcd_set_cursor(0, 0);
-		lcd_puts_P(_T(MSG_ERROR));
-		lcd_set_cursor(0, 2);
-		lcd_puts_P(_T(MSG_PREHEAT_NOZZLE));
-		delay(2000);
-		lcd_clear();
+		show_preheat_nozzle_warning();
 		lcd_return_to_status();
 	}
 }
@@ -977,16 +1014,11 @@ void extr_unload_used()
 		snmm_filaments_used = 0;
 	}
 	else {
-		lcd_clear();
-		lcd_set_cursor(0, 0);
-		lcd_puts_P(_T(MSG_ERROR));
-		lcd_set_cursor(0, 2);
-		lcd_puts_P(_T(MSG_PREHEAT_NOZZLE));
-		delay(2000);
-		lcd_clear();
+		show_preheat_nozzle_warning();
 		lcd_return_to_status();
 	}
 }
+#endif //SNMM
 
 void extr_unload_0()
 {
@@ -1029,6 +1061,36 @@ void mmu_show_warning()
 	kill(_i("Please update firmware in your MMU2. Waiting for reset."));
 }
 
+void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
+{
+  if (degHotend0() > EXTRUDE_MINTEMP)
+  {
+	tmp_extruder = filament_nr;
+	lcd_update_enable(false);
+	lcd_clear();
+	lcd_set_cursor(0, 1); lcd_puts_P(_T(MSG_LOADING_FILAMENT));
+	lcd_print(" ");
+	lcd_print(tmp_extruder + 1);
+	mmu_command(MMU_CMD_T0 + tmp_extruder);
+	manage_response(true, true);
+	mmu_command(MMU_CMD_C0);
+	mmu_extruder = tmp_extruder; //filament change is finished
+	mmu_load_to_nozzle();
+	load_filament_final_feed();
+	custom_message_type = CUSTOM_MSG_TYPE_F_LOAD;
+	lcd_setstatuspgm(_T(MSG_LOADING_FILAMENT));
+	lcd_return_to_status();
+	lcd_update_enable(true);	
+	lcd_load_filament_color_check();
+	lcd_setstatuspgm(_T(WELCOME_MSG));
+	custom_message_type = CUSTOM_MSG_TYPE_STATUS;
+  }
+  else
+  {
+	  show_preheat_nozzle_warning();
+  }
+}
+
 void mmu_eject_filament(uint8_t filament, bool recover)
 {
 	if (filament < 5) 
@@ -1058,13 +1120,7 @@ void mmu_eject_filament(uint8_t filament, bool recover)
 		}
 		else
 		{
-			lcd_clear();
-			lcd_set_cursor(0, 0);
-			lcd_puts_P(_T(MSG_ERROR));
-			lcd_set_cursor(0, 2);
-			lcd_puts_P(_T(MSG_PREHEAT_NOZZLE));
-			delay(2000);
-			lcd_clear();
+			show_preheat_nozzle_warning();
 		}
 	}
 	else
