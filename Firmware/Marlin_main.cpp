@@ -3081,6 +3081,7 @@ void gcode_M701()
 		plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 400 / 60, active_extruder); //fast sequence
 		
 		load_filament_final_feed(); //slow sequence
+		st_synchronize();
 
 		if((eSoundMode==e_SOUND_MODE_LOUD)||(eSoundMode==e_SOUND_MODE_ONCE)) tone(BEEPER, 500);
 		delay_keep_alive(50);
@@ -7456,7 +7457,6 @@ void manage_inactivity(bool ignore_stepper_queue/*=false*/) //default argument s
     {
       if(blocks_queued() == false && ignore_stepper_queue == false) {
         disable_x();
-//        SERIAL_ECHOLNPGM("manage_inactivity - disable Y");
         disable_y();
         disable_z();
         disable_e0();
@@ -7790,7 +7790,7 @@ static void wait_for_heater(long codenum, uint8_t extruder) {
 				codenum = millis();
 		}
 			manage_heater();
-			manage_inactivity();
+			manage_inactivity(true); //do not disable steppers
 			lcd_update(0);
 #ifdef TEMP_RESIDENCY_TIME
 			/* start/restart the TEMP_RESIDENCY_TIME timer whenever we reach target temp for the first time
@@ -8968,7 +8968,6 @@ void load_filament_final_feed()
 	st_synchronize();
 	current_position[E_AXIS]+= FILAMENTCHANGE_FINALFEED;
 	plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 200/60, active_extruder);
-	st_synchronize();
 }
 
 void M600_check_state()
@@ -8991,10 +8990,9 @@ void M600_check_state()
 
 				// Filament loaded properly but color is not clear
 				case 3:
-					st_synchronize();
-					current_position[E_AXIS]+= FILAMENTCHANGE_FINALFEED;
-					plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 200/60, active_extruder);
+					load_filament_final_feed();
 					lcd_loading_color();
+					st_synchronize();
 					break;
                  
 				// Everything good             
@@ -9114,6 +9112,7 @@ void M600_load_filament_movements()
 #endif                
 	load_filament_final_feed();
 	lcd_loading_filament();
+	st_synchronize();
 }
 
 void M600_load_filament() {
