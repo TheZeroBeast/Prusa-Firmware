@@ -14,6 +14,9 @@ extern bool fsensor_not_responding;
 //enable/disable quality meassurement
 extern bool fsensor_oq_meassure_enabled;
 
+//extern bool mmuFilamentMK3Moving;
+extern bool mmuFSensorLoading;
+
 
 //! @name save restore printing
 //! @{

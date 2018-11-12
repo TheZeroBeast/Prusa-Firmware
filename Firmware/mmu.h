@@ -4,6 +4,7 @@
 
 
 extern bool mmu_enabled;
+extern int8_t mmu_state;
 
 extern uint8_t mmu_extruder;
 
@@ -34,14 +35,20 @@ extern int16_t mmu_buildnr;
 #define MMU_CMD_E3   0x53
 #define MMU_CMD_E4   0x54
 #define MMU_CMD_R0   0x60
-
+#define MMU_CMD_P0   0x70
+#define MMU_CMD_FS   0x81
 
 extern int mmu_puts_P(const char* str);
 
 extern int mmu_printf_P(const char* format, ...);
 
+extern int8_t mmu_rx_echo(void);
+
 extern int8_t mmu_rx_ok(void);
 
+extern int8_t mmu_rx_not_ok(void);
+
+extern int8_t mmu_rx_sensFilatBoot(void);
 
 extern void mmu_init(void);
 
@@ -69,6 +76,7 @@ extern int get_ext_nr();
 extern void display_loading();
 extern void extr_adj(int extruder);
 extern void extr_unload();
+extern void extr_unload_at_boot();
 extern void extr_adj_0();
 extern void extr_adj_1();
 extern void extr_adj_2();
