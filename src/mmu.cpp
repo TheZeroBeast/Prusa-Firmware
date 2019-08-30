@@ -25,6 +25,7 @@
 #define MMU_TIMEOUT 10
 #define MMU_CMD_TIMEOUT 300000ul //5min timeout for mmu commands (except P0)
 #define MMU_P0_TIMEOUT 3000ul    //timeout for P0 command: 3seconds
+#define TXTimeout 60 //60ms
 
 #ifdef MMU_HWRESET
 #define MMU_RST_PIN 76
@@ -65,11 +66,10 @@ bool isMMUPrintPaused = false;
 int lastLoadedFilament = -10;
 uint16_t mmu_power_failures = 0;
 void shutdownE0(bool shutdown = true);
+void mmu_load_step(bool synchronize);
 
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
-#define TXTimeout 60 //60ms
-//uint8_t unload_filament_type[3] = {0, 0, 0};
 uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
 
@@ -449,7 +449,7 @@ void mmu_loop(void)
     if (tData.startsWith("IRSEN"))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      //mmu_load_step(false);
+      mmu_load_step(false);
       //mmu_fil_loaded = true;
       mmu_idl_sens = true;
     }
@@ -497,7 +497,7 @@ void mmu_loop(void)
     if (tData == "IRSEN")
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      //mmu_load_step(false);
+      mmu_load_step(false);
       //mmu_fil_loaded = true;
       mmu_idl_sens = true;
     }
@@ -555,7 +555,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   st_synchronize();
   current_position[E_AXIS] -= 70;
-  plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
+  plan_buffer_line_curposXYZE(_filament_type_speed, active_extruder);
   st_synchronize();
   disable_e0();
 }
@@ -594,12 +594,6 @@ bool mmu_get_response(void)
 	while (!mmu_ready)
 	{
     mmu_loop;
-    /*if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < millis()))) {
-      txRESEND         = false;
-      confirmedPayload = false;
-      startRxFlag      = false;
-      uart2_txPayload(lastTxPayload);
-    }*/
     if (((mmu_state == S::Wait) || (mmu_state == S::Idle) || mmu_idl_sens) && ((mmu_last_request + MMU_CMD_TIMEOUT) > millis())) {
       delay_keep_alive(100);
     } else {
