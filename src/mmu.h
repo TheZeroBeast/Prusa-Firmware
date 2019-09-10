@@ -92,7 +92,7 @@ extern void extr_unload_();
 
 extern void mmu_filament_ramming();
 extern void mmu_load_step(bool synchronize = true);
-extern bool mmu_continue_loading(void);
+extern void mmu_continue_loading(void);
 
 extern bool mmu_check_version();
 extern void mmu_show_warning();
