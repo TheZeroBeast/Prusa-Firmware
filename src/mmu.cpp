@@ -38,6 +38,8 @@ static uint8_t mmu_attempt_nr = 0;
 #define MMU_RST_PIN 76
 #endif //MMU_HWRESET
 
+#define ALLOWED_MISSED_STEPS 20
+
 namespace
 { // MMU2S States
   enum class S : uint_least8_t
@@ -1166,7 +1168,7 @@ static bool can_load()
         st_synchronize();
         if(isEXTLoaded) ++filament_detected_count;
     }
-    if (filament_detected_count > steps - 4) return true;
+    if (filament_detected_count > steps - ALLOWED_MISSED_STEPS) return true;
     else return false;
 }
 
